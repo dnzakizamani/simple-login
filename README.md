@@ -220,6 +220,10 @@ NODE_ENV=development       # Environment (development/production)
 
 This project is open source and available under the [MIT License](LICENSE).
 
+## Credits
+
+Developed by D.N. Zaki Zamani
+
 ## Screenshots
 
 Check the `screenshots/` folder for application previews.

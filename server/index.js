@@ -1,3 +1,7 @@
+/**
+ * Express server setup
+ * Developed by D.N. Zaki Zamani
+ */
 const express = require('express');
 const app = express();
 const cookieParser = require('cookie-parser');

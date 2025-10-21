@@ -1,3 +1,7 @@
+/**
+ * Theme context for dark mode functionality
+ * Developed by D.N. Zaki Zamani
+ */
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
 const ThemeContext = createContext()
