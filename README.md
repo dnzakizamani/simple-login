@@ -10,7 +10,8 @@ A minimal full-stack web application implementing user authentication with login
 - **JWT Authentication**: Secure token stored in HttpOnly cookie
 - **Protected Routes**: Dashboard accessible only with valid JWT
 - **Rate Limiting**: 5 login attempts per minute per IP address
-- **Responsive Design**: Mobile-friendly UI using TailwindCSS
+- **Responsive Design**: Mobile-friendly UI using TailwindCSS with collapsible sidebar on mobile
+- **Dark Mode**: Toggle between light and dark themes with persistence
 - **Database Seeding**: Automated user creation with seed script
 
 ## Tech Stack
@@ -159,6 +160,41 @@ npm run start
 ```
 
 ## Environment Variables
+## Testing
+
+
+
+### Running Unit Tests
+
+
+
+The project includes unit tests for React components using Jest and React Testing Library.
+
+
+
+```bash
+
+cd client
+
+npm test          # Run tests once
+
+npm run test:watch # Run tests in watch mode
+
+```
+
+
+
+**Test Coverage:**
+
+- Login form validation
+
+- Password show/hide toggle functionality
+
+- API call mocking and error handling
+
+- Component rendering and user interactions
+
+
 
 ### Server (.env)
 
@@ -179,13 +215,6 @@ NODE_ENV=development       # Environment (development/production)
 - CORS is configured for cross-origin requests
 - In production, always use `NODE_ENV=production` and a strong `JWT_SECRET`
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 

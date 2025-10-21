@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
-import { FaUser, FaLock } from 'react-icons/fa'
+import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa'
 import p5 from 'p5'
 import TRUNK from 'vanta/dist/vanta.trunk.min'
 
@@ -11,6 +11,7 @@ export default function Login() {
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
 
   const vantaRef = useRef(null)
@@ -110,12 +111,19 @@ export default function Login() {
             <div className="flex items-center border border-gray-300 rounded-lg px-3 focus-within:ring-2 focus-within:ring-blue-300">
               <FaLock className="text-gray-400 mr-2" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Masukkan Password"
                 className="w-full p-2 outline-none text-gray-700"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="ml-2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
             </div>
           </div>
 
