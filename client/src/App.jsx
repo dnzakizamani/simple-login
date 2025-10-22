@@ -3,6 +3,10 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Users from './pages/Users'
+import Roles from './pages/Roles'
+import Permissions from './pages/Permissions'
+import Menus from './pages/Menus'
 
 
 
@@ -52,6 +56,10 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/users" element={<Protected><Users /></Protected>} />
+      <Route path="/roles" element={<Protected><Roles /></Protected>} />
+      <Route path="/permissions" element={<Protected><Permissions /></Protected>} />
+      <Route path="/menus" element={<Protected><Menus /></Protected>} />
       <Route path="/" element={<Navigate to="/login" replace />} />
     </Routes>
   )

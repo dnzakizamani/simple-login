@@ -9,6 +9,10 @@ const cors = require('cors');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const roleRoutes = require('./routes/roles');
+const permissionRoutes = require('./routes/permissions');
+const menuRoutes = require('./routes/menus');
 
 app.use(express.json());
 app.use(cookieParser());
@@ -19,6 +23,10 @@ app.use(cors({
 }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionRoutes);
+app.use('/api/menus', menuRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

@@ -14,6 +14,11 @@ const loginLimiter = rateLimit({
 
 // Login
 router.post('/login', loginLimiter, async (req, res) => {
+  console.log('Body:', req.body);
+  console.log('Headers:', req.headers);
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  
   const { identifier, password } = req.body; // identifier = email or username
   if (!identifier || !password) return res.status(400).json({ ok: false, message: 'Fields required' });
 
@@ -55,7 +60,7 @@ router.post('/logout', (req, res) => {
 
 // Check current user
 const authMiddleware = require('../middleware/auth');
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', authMiddleware.withRoles, (req, res) => {
   res.json({ ok: true, user: req.user });
 });
 

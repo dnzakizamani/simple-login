@@ -13,10 +13,13 @@
     "axios": "^1.4.0",
     "p5": "^2.0.5",
     "react": "^18.2.0",
+    "react-data-table-component": "^7.7.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^6.11.2",
+    "react-toastify": "^11.0.5",
     "recharts": "^3.3.0",
+    "styled-components": "^6.1.19",
     "three": "^0.180.0",
     "vanta": "^0.5.24"
   },
