@@ -56,7 +56,11 @@ export default function Login() {
         { identifier, password },
         { withCredentials: true }
       )
-      if (res.data.ok) navigate('/dashboard')
+      if (res.data.ok) {
+        // Store username in localStorage for review ownership checks
+        localStorage.setItem('username', res.data.user?.username || res.data.user?.email);
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err?.response?.data?.message || 'Login gagal.')
     } finally {

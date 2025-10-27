@@ -5,33 +5,32 @@ import DataTable from 'react-data-table-component'
 import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
-export default function Permissions() {
-  const [permissions, setPermissions] = useState([])
+export default function Products() {
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [editingPermission, setEditingPermission] = useState(null)
+  const [editingProduct, setEditingProduct] = useState(null)
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(10)
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 })
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
   })
 
   useEffect(() => {
-    fetchPermissions()
+    fetchProducts()
   }, [pagination.page, limit, search])
 
-  const fetchPermissions = async () => {
+  const fetchProducts = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/permissions', {
+      const res = await axios.get('http://localhost:4000/api/products', {
         params: { page: pagination.page, limit, search },
         withCredentials: true
       })
-      setPermissions(res.data.permissions)
+      setProducts(res.data.products)
       setPagination(res.data.pagination)
     } catch (err) {
-      toast.error('Failed to fetch permissions')
+      toast.error('Failed to fetch products')
     } finally {
       setLoading(false)
     }
@@ -40,38 +39,37 @@ export default function Permissions() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      if (editingPermission) {
-        await axios.put(`http://localhost:4000/api/permissions/${editingPermission.id}`, formData, { withCredentials: true })
-        toast.success('Permission updated successfully')
+      if (editingProduct) {
+        await axios.put(`http://localhost:4000/api/products/${editingProduct.id}`, formData, { withCredentials: true })
+        toast.success('Product updated successfully')
       } else {
-        await axios.post('http://localhost:4000/api/permissions', formData, { withCredentials: true })
-        toast.success('Permission created successfully')
+        await axios.post('http://localhost:4000/api/products', formData, { withCredentials: true })
+        toast.success('Product created successfully')
       }
       setShowModal(false)
-      setEditingPermission(null)
+      setEditingProduct(null)
       resetForm()
-      fetchPermissions()
+      fetchProducts()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Operation failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this permission?')) return
+    if (!window.confirm('Are you sure you want to delete this product?')) return
     try {
-      await axios.delete(`http://localhost:4000/api/permissions/${id}`, { withCredentials: true })
-      toast.success('Permission deleted successfully')
-      fetchPermissions()
+      await axios.delete(`http://localhost:4000/api/products/${id}`, { withCredentials: true })
+      toast.success('Product deleted successfully')
+      fetchProducts()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed')
     }
   }
 
-  const handleEdit = (permission) => {
-    setEditingPermission(permission)
+  const handleEdit = (product) => {
+    setEditingProduct(product)
     setFormData({
-      name: permission.name,
-      description: permission.description || ''
+      name: product.name || '',
     })
     setShowModal(true)
   }
@@ -79,19 +77,14 @@ export default function Permissions() {
   const resetForm = () => {
     setFormData({
       name: '',
-      description: ''
     })
   }
 
   const columns = [
+
     {
       name: 'Name',
       selector: row => row.name,
-      sortable: true,
-    },
-    {
-      name: 'Description',
-      selector: row => row.description,
       sortable: true,
     },
     {
@@ -118,17 +111,7 @@ export default function Permissions() {
         </div>
       ),
       ignoreRowClick: true,
-      allowOverflow: true,
-      button: true,
-      width: '150px',
-      style: {
-        position: 'sticky',
-        right: 0,
-        background: '#fff',
-        boxShadow: '-2px 0 4px rgba(0, 0, 0, 0.1)',
-        zIndex: 1,
-        minWidth: '150px'
-      }
+      width: '150px'
     },
   ]
 
@@ -152,26 +135,26 @@ export default function Permissions() {
   }
 
   return (
-    <Layout title="Permissions">
+    <Layout title="Products Management">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Permissions Management</h2>
+          <h2 className="text-xl font-semibold">Products Management</h2>
           <button
             onClick={() => {
-              setEditingPermission(null)
+              setEditingProduct(null)
               resetForm()
               setShowModal(true)
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2 btn-xs"
           >
-            <FaIcons.FaPlus /> Add Permission
+            <FaIcons.FaPlus /> Add Product
           </button>
         </div>
 
         <div className="flex gap-4 mb-4">
           <input
             type="text"
-            placeholder="Search permissions..."
+            placeholder="Search products..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -192,7 +175,7 @@ export default function Permissions() {
           <div className="overflow-x-auto">
             <DataTable
               columns={columns}
-              data={permissions}
+              data={products}
               progressPending={loading}
               pagination
               paginationServer
@@ -212,52 +195,47 @@ export default function Permissions() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">
-              {editingPermission ? 'Edit Permission' : 'Add Permission'}
+              {editingProduct ? 'Edit Product' : 'Add Product'}
             </h3>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4">
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
+
+                {/* Tombol */}
+                <div className="flex gap-2 mt-6">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    {editingProduct ? 'Update' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false)
+                      setEditingProduct(null)
+                      resetForm()
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              </div>
-              <div className="flex gap-2 mt-6">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  {editingPermission ? 'Update' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false)
-                    setEditingPermission(null)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              </form>
+
           </div>
         </div>
       )}

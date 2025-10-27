@@ -7,6 +7,14 @@ import Users from './pages/Users'
 import Roles from './pages/Roles'
 import Permissions from './pages/Permissions'
 import Menus from './pages/Menus'
+import Books from './pages/Books'
+import BookReviews from './pages/BookReviews'
+import MyReviews from './pages/MyReviews'
+import BookDetail from './pages/BookDetail'
+import Categories from './pages/Categories'
+import Products from './pages/Products'
+import Transactions from './pages/Transactions'
+import CrudGenerator from './pages/CrudGenerator'
 
 
 
@@ -60,6 +68,14 @@ export default function App() {
       <Route path="/roles" element={<Protected><Roles /></Protected>} />
       <Route path="/permissions" element={<Protected><Permissions /></Protected>} />
       <Route path="/menus" element={<Protected><Menus /></Protected>} />
+      <Route path="/books" element={<Protected><Books /></Protected>} />
+      <Route path="/books/:id" element={<Protected><BookDetail /></Protected>} />
+      <Route path="/book-reviews" element={<Protected><BookReviews /></Protected>} />
+      <Route path="/my-reviews" element={<Protected><MyReviews /></Protected>} />
+      <Route path="/categories" element={<Protected><Categories /></Protected>} />
+      <Route path="/transactions" element={<Protected><Transactions /></Protected>} />
+      <Route path="/products" element={<Protected><Products /></Protected>} />
+      <Route path="/crud-generator" element={<Protected><CrudGenerator /></Protected>} />
       <Route path="/" element={<Navigate to="/login" replace />} />
     </Routes>
   )

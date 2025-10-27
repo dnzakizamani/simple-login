@@ -42,6 +42,8 @@ export default function Layout({ children, title }) {
 
   const logout = async () => {
     await axios.post('http://localhost:4000/api/auth/logout', {}, { withCredentials: true })
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
     navigate('/login')
   }
 

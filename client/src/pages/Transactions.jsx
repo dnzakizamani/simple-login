@@ -5,33 +5,33 @@ import DataTable from 'react-data-table-component'
 import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
-export default function Permissions() {
-  const [permissions, setPermissions] = useState([])
+export default function Transactions() {
+  const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [editingPermission, setEditingPermission] = useState(null)
+  const [editingTransaction, setEditingTransaction] = useState(null)
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(10)
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 })
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    date: '',
   })
 
   useEffect(() => {
-    fetchPermissions()
+    fetchTransactions()
   }, [pagination.page, limit, search])
 
-  const fetchPermissions = async () => {
+  const fetchTransactions = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/permissions', {
+      const res = await axios.get('http://localhost:4000/api/transactions', {
         params: { page: pagination.page, limit, search },
         withCredentials: true
       })
-      setPermissions(res.data.permissions)
+      setTransactions(res.data.transactions)
       setPagination(res.data.pagination)
     } catch (err) {
-      toast.error('Failed to fetch permissions')
+      toast.error('Failed to fetch transactions')
     } finally {
       setLoading(false)
     }
@@ -40,38 +40,38 @@ export default function Permissions() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      if (editingPermission) {
-        await axios.put(`http://localhost:4000/api/permissions/${editingPermission.id}`, formData, { withCredentials: true })
-        toast.success('Permission updated successfully')
+      if (editingTransaction) {
+        await axios.put(`http://localhost:4000/api/transactions/${editingTransaction.id}`, formData, { withCredentials: true })
+        toast.success('Transaction updated successfully')
       } else {
-        await axios.post('http://localhost:4000/api/permissions', formData, { withCredentials: true })
-        toast.success('Permission created successfully')
+        await axios.post('http://localhost:4000/api/transactions', formData, { withCredentials: true })
+        toast.success('Transaction created successfully')
       }
       setShowModal(false)
-      setEditingPermission(null)
+      setEditingTransaction(null)
       resetForm()
-      fetchPermissions()
+      fetchTransactions()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Operation failed')
     }
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this permission?')) return
+    if (!window.confirm('Are you sure you want to delete this transaction?')) return
     try {
-      await axios.delete(`http://localhost:4000/api/permissions/${id}`, { withCredentials: true })
-      toast.success('Permission deleted successfully')
-      fetchPermissions()
+      await axios.delete(`http://localhost:4000/api/transactions/${id}`, { withCredentials: true })
+      toast.success('Transaction deleted successfully')
+      fetchTransactions()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed')
     }
   }
 
-  const handleEdit = (permission) => {
-    setEditingPermission(permission)
+  const handleEdit = (transaction) => {
+    setEditingTransaction(transaction)
     setFormData({
-      name: permission.name,
-      description: permission.description || ''
+      name: transaction.name || '',
+      date: transaction.date || '',
     })
     setShowModal(true)
   }
@@ -79,19 +79,20 @@ export default function Permissions() {
   const resetForm = () => {
     setFormData({
       name: '',
-      description: ''
+      date: '',
     })
   }
 
   const columns = [
+
     {
       name: 'Name',
       selector: row => row.name,
       sortable: true,
     },
     {
-      name: 'Description',
-      selector: row => row.description,
+      name: 'Date',
+      selector: row => row.date,
       sortable: true,
     },
     {
@@ -118,17 +119,7 @@ export default function Permissions() {
         </div>
       ),
       ignoreRowClick: true,
-      allowOverflow: true,
-      button: true,
-      width: '150px',
-      style: {
-        position: 'sticky',
-        right: 0,
-        background: '#fff',
-        boxShadow: '-2px 0 4px rgba(0, 0, 0, 0.1)',
-        zIndex: 1,
-        minWidth: '150px'
-      }
+      width: '150px'
     },
   ]
 
@@ -152,26 +143,26 @@ export default function Permissions() {
   }
 
   return (
-    <Layout title="Permissions">
+    <Layout title="Transactions Management">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Permissions Management</h2>
+          <h2 className="text-xl font-semibold">Transactions Management</h2>
           <button
             onClick={() => {
-              setEditingPermission(null)
+              setEditingTransaction(null)
               resetForm()
               setShowModal(true)
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2 btn-xs"
           >
-            <FaIcons.FaPlus /> Add Permission
+            <FaIcons.FaPlus /> Add Transaction
           </button>
         </div>
 
         <div className="flex gap-4 mb-4">
           <input
             type="text"
-            placeholder="Search permissions..."
+            placeholder="Search transactions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -192,7 +183,7 @@ export default function Permissions() {
           <div className="overflow-x-auto">
             <DataTable
               columns={columns}
-              data={permissions}
+              data={transactions}
               progressPending={loading}
               pagination
               paginationServer
@@ -212,52 +203,57 @@ export default function Permissions() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">
-              {editingPermission ? 'Edit Permission' : 'Add Permission'}
+              {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
             </h3>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-4">
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Date</label>
+                      <input
+                        type="text"
+                        value={formData.date}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
+
+                {/* Tombol */}
+                <div className="flex gap-2 mt-6">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    {editingTransaction ? 'Update' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false)
+                      setEditingTransaction(null)
+                      resetForm()
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              </div>
-              <div className="flex gap-2 mt-6">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  {editingPermission ? 'Update' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false)
-                    setEditingPermission(null)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              </form>
+
           </div>
         </div>
       )}

@@ -103,6 +103,91 @@ async function seed() {
     )
   `);
 
+
+  // Create products table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      price INT NOT NULL,
+      category VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+
+  // Create products table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      price INT NOT NULL,
+      category VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+
+  // Create categories table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+
+  // Create products table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+
+  // Create books table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS books (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title TEXT NOT NULL,
+      author TEXT,
+      isbn VARCHAR(20),
+      published_year INT,
+      image_url TEXT,
+      description TEXT,
+      user_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Create book_reviews table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS book_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      book_id INT NOT NULL,
+      rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+      review_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_user_book (user_id, book_id)
+    )
+  `);
+
   // Insert sample data
   // Roles
   const [roleRows] = await pool.query('SELECT id FROM roles WHERE name = ?', ['admin']);
@@ -156,7 +241,10 @@ async function seed() {
     { name: 'Users', path: '/users', icon: 'FaUsers' },
     { name: 'Roles', path: '/roles', icon: 'FaShieldAlt' },
     { name: 'Permissions', path: '/permissions', icon: 'FaKey' },
-    { name: 'Menus', path: '/menus', icon: 'FaBars' }
+    { name: 'Menus', path: '/menus', icon: 'FaBars' },
+    { name: 'Books', path: '/books', icon: 'FaBook' },
+    { name: 'Book Reviews', path: '/book-reviews', icon: 'FaStar' },
+    { name: 'CRUD Generator', path: '/crud-generator', icon: 'FaMagic' }
   ];
 
   for (const menu of menus) {
@@ -186,6 +274,83 @@ async function seed() {
     adminId = result.insertId;
   } else {
     adminId = adminRows[0].id;
+  }
+
+  // Sample books
+  const sampleBooks = [
+    {
+      title: 'The Great Gatsby',
+      author: 'F. Scott Fitzgerald',
+      isbn: '978-0-7432-7356-5',
+      published_year: 1925,
+      image_url: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400',
+      description: 'A classic American novel set in the Jazz Age, exploring themes of wealth, love, and the American Dream.'
+    },
+    {
+      title: 'To Kill a Mockingbird',
+      author: 'Harper Lee',
+      isbn: '978-0-06-112008-4',
+      published_year: 1960,
+      image_url: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
+      description: 'A powerful story about racial injustice and moral growth in the American South.'
+    },
+    {
+      title: '1984',
+      author: 'George Orwell',
+      isbn: '978-0-452-28423-4',
+      published_year: 1949,
+      image_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+      description: 'A dystopian novel about totalitarianism, surveillance, and the power of language.'
+    },
+    {
+      title: 'Pride and Prejudice',
+      author: 'Jane Austen',
+      isbn: '978-0-14-143951-8',
+      published_year: 1813,
+      image_url: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
+      description: 'A romantic novel about manners, marriage, and social class in Regency England.'
+    },
+    {
+      title: 'The Catcher in the Rye',
+      author: 'J.D. Salinger',
+      isbn: '978-0-316-76948-0',
+      published_year: 1951,
+      image_url: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400',
+      description: 'A coming-of-age story about teenage rebellion and alienation.'
+    }
+  ];
+
+  for (const book of sampleBooks) {
+    const [bookRows] = await pool.query('SELECT id FROM books WHERE title = ?', [book.title]);
+    if (!bookRows.length) {
+      await pool.query(
+        'INSERT INTO books (title, author, isbn, published_year, image_url, description) VALUES (?, ?, ?, ?, ?, ?)',
+        [book.title, book.author, book.isbn, book.published_year, book.image_url, book.description]
+      );
+    }
+  }
+
+  // Sample book reviews
+  const [bookIds] = await pool.query('SELECT id FROM books LIMIT 3');
+  if (bookIds.length >= 3) {
+    const sampleReviews = [
+      { user_id: userId, book_id: bookIds[0].id, rating: 5, review_text: 'An absolutely brilliant novel! The characters are so well-developed and the story is captivating from start to finish.' },
+      { user_id: userId, book_id: bookIds[1].id, rating: 4, review_text: 'A powerful story about morality and justice. The writing is beautiful and the themes are timeless.' },
+      { user_id: adminId, book_id: bookIds[2].id, rating: 5, review_text: 'A dystopian masterpiece that feels more relevant today than ever. Orwell\'s vision is both terrifying and insightful.' }
+    ];
+
+    for (const review of sampleReviews) {
+      const [reviewRows] = await pool.query(
+        'SELECT id FROM book_reviews WHERE user_id = ? AND book_id = ?',
+        [review.user_id, review.book_id]
+      );
+      if (!reviewRows.length) {
+        await pool.query(
+          'INSERT INTO book_reviews (user_id, book_id, rating, review_text) VALUES (?, ?, ?, ?)',
+          [review.user_id, review.book_id, review.rating, review.review_text]
+        );
+      }
+    }
   }
 
   // Assign roles
