@@ -67,6 +67,15 @@ async function seed() {
     )
   `);
 
+  // Create uploads directory if it doesn't exist
+  const fs = require('fs');
+  const path = require('path');
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('Created uploads directory');
+  }
+
   // Create user_roles table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_roles (
@@ -188,6 +197,38 @@ async function seed() {
     )
   `);
 
+  // Create pdf_files table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pdf_files (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      original_filename VARCHAR(255) NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INT NOT NULL,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create pdf_reading_progress table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pdf_reading_progress (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      pdf_id INT NOT NULL,
+      current_page INT DEFAULT 1,
+      total_pages INT,
+      last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (pdf_id) REFERENCES pdf_files(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_user_pdf (user_id, pdf_id)
+    )
+  `);
+
   // Insert sample data
   // Roles
   const [roleRows] = await pool.query('SELECT id FROM roles WHERE name = ?', ['admin']);
@@ -244,6 +285,7 @@ async function seed() {
     { name: 'Menus', path: '/menus', icon: 'FaBars' },
     { name: 'Books', path: '/books', icon: 'FaBook' },
     { name: 'Book Reviews', path: '/book-reviews', icon: 'FaStar' },
+    { name: 'PDF Library', path: '/pdfs', icon: 'FaFilePdf' },
     { name: 'CRUD Generator', path: '/crud-generator', icon: 'FaMagic' }
   ];
 

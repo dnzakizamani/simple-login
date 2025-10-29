@@ -11,6 +11,8 @@ import Books from './pages/Books'
 import BookReviews from './pages/BookReviews'
 import MyReviews from './pages/MyReviews'
 import BookDetail from './pages/BookDetail'
+import PDFs from './pages/PDFs'
+import PDFReader from './pages/PDFReader'
 import Categories from './pages/Categories'
 import Products from './pages/Products'
 import Transactions from './pages/Transactions'
@@ -72,6 +74,8 @@ export default function App() {
       <Route path="/books/:id" element={<Protected><BookDetail /></Protected>} />
       <Route path="/book-reviews" element={<Protected><BookReviews /></Protected>} />
       <Route path="/my-reviews" element={<Protected><MyReviews /></Protected>} />
+      <Route path="/pdfs" element={<Protected><PDFs /></Protected>} />
+      <Route path="/pdfs/:id/read" element={<Protected><PDFReader /></Protected>} />
       <Route path="/categories" element={<Protected><Categories /></Protected>} />
       <Route path="/transactions" element={<Protected><Transactions /></Protected>} />
       <Route path="/products" element={<Protected><Products /></Protected>} />

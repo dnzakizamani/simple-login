@@ -1,2 +1,12 @@
 - [x] Update client/src/pages/Dashboard.jsx to replace current content with portfolio sections: Hero/About Me, Tech Stack, Featured Projects, Resume, and Contact.
 - [x] Test the updated dashboard by running the client application.
+- [x] Revamp book reviews module with enhanced features
+- [x] Fix database schema and CORS issues
+- [x] Create PDF reader module with translation features
+  - [x] Install PDF.js library for client-side PDF rendering
+  - [x] Create database table for PDF files
+  - [x] Create API endpoints for PDF upload and management
+  - [x] Create PDF reader page with text selection
+  - [x] Implement translation functionality (English to Indonesian)
+  - [x] Add PDF management to navigation menu
+  - [x] Test PDF upload, reading, and translation features
