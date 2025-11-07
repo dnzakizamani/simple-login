@@ -13,31 +13,34 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
     const offset = (parsedPage - 1) * parsedLimit;
 
     let whereClause = '';
-    let params = [];
+    let params = [parsedLimit, offset];
 
     if (search) {
-      whereClause = 'WHERE name LIKE ? OR description LIKE ?';
-      params = [`%${search}%`, `%${search}%`];
+      whereClause = 'WHERE name ILIKE $3 OR description ILIKE $4';
+      params = [parsedLimit, offset, `%${search}%`, `%${search}%`];
     }
 
     // Get total count
-    const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM permissions ${whereClause}`,
-      params
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM permissions ${whereClause.replace(/\$(\d+)/g, (match, num) => `$${parseInt(num) + 2}`)}`,
+      search ? [`%${search}%`, `%${search}%`] : []
     );
-    const total = countResult[0].total;
+    const total = parseInt(countResult.rows[0].total);
 
     // Get permissions
-    const [rows] = await pool.query(`
+    const queryParams = search ? [parsedLimit, offset, `%${search}%`, `%${search}%`] : [parsedLimit, offset];
+    const queryWhereClause = search ? 'WHERE name ILIKE $3 OR description ILIKE $4' : '';
+    
+    const result = await pool.query(`
       SELECT * FROM permissions
-      ${whereClause}
+      ${queryWhereClause}
       ORDER BY created_at DESC
-      LIMIT ${parsedLimit} OFFSET ${offset}
-    `, params);
+      LIMIT $1 OFFSET $2
+    `, queryParams);
 
     res.json({
       ok: true,
-      permissions: rows,
+      permissions: result.rows,
       pagination: {
         page: parsedPage,
         limit: parsedLimit,
@@ -55,13 +58,13 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
 router.get('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query('SELECT * FROM permissions WHERE id = ?', [id]);
+    const result = await pool.query('SELECT * FROM permissions WHERE id = $1', [id]);
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: 'Permission not found' });
     }
 
-    res.json({ ok: true, permission: rows[0] });
+    res.json({ ok: true, permission: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -78,17 +81,17 @@ router.post('/', authMiddleware.withRoles, requireRole('admin'), async (req, res
     }
 
     // Check if permission name already exists
-    const [existing] = await pool.query('SELECT id FROM permissions WHERE name = ?', [name]);
-    if (existing.length) {
+    const existing = await pool.query('SELECT id FROM permissions WHERE name = $1', [name]);
+    if (existing.rows.length) {
       return res.status(409).json({ ok: false, message: 'Permission name already exists' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO permissions (name, description) VALUES (?, ?)',
+    const result = await pool.query(
+      'INSERT INTO permissions (name, description) VALUES ($1, $2) RETURNING id',
       [name, description || '']
     );
 
-    res.status(201).json({ ok: true, message: 'Permission created successfully', permissionId: result.insertId });
+    res.status(201).json({ ok: true, message: 'Permission created successfully', permissionId: result.rows[0].id });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -102,32 +105,35 @@ router.put('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, r
     const { name, description } = req.body;
 
     // Check if permission exists
-    const [permRows] = await pool.query('SELECT id FROM permissions WHERE id = ?', [id]);
-    if (!permRows.length) {
+    const permRows = await pool.query('SELECT id FROM permissions WHERE id = $1', [id]);
+    if (!permRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Permission not found' });
     }
 
     let updateFields = [];
     let updateValues = [];
+    let paramIndex = 1;
 
     if (name) {
       // Check name uniqueness
-      const [existing] = await pool.query('SELECT id FROM permissions WHERE name = ? AND id != ?', [name, id]);
-      if (existing.length) {
+      const existing = await pool.query('SELECT id FROM permissions WHERE name = $1 AND id != $2', [name, id]);
+      if (existing.rows.length) {
         return res.status(409).json({ ok: false, message: 'Permission name already exists' });
       }
-      updateFields.push('name = ?');
+      updateFields.push(`name = $${paramIndex}`);
       updateValues.push(name);
+      paramIndex++;
     }
 
     if (description !== undefined) {
-      updateFields.push('description = ?');
+      updateFields.push(`description = $${paramIndex}`);
       updateValues.push(description);
+      paramIndex++;
     }
 
     if (updateFields.length) {
-      updateValues.push(id);
-      await pool.query(`UPDATE permissions SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+      updateValues.push(id); // for WHERE clause
+      await pool.query(`UPDATE permissions SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`, updateValues);
     }
 
     res.json({ ok: true, message: 'Permission updated successfully' });
@@ -143,18 +149,18 @@ router.delete('/:id', authMiddleware.withRoles, requireRole('admin'), async (req
     const { id } = req.params;
 
     // Check if permission exists
-    const [permRows] = await pool.query('SELECT id FROM permissions WHERE id = ?', [id]);
-    if (!permRows.length) {
+    const permRows = await pool.query('SELECT id FROM permissions WHERE id = $1', [id]);
+    if (!permRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Permission not found' });
     }
 
     // Check if permission is assigned to any roles
-    const [rolePermRows] = await pool.query('SELECT COUNT(*) as count FROM role_permissions WHERE permission_id = ?', [id]);
-    if (rolePermRows[0].count > 0) {
+    const rolePermRows = await pool.query('SELECT COUNT(*) as count FROM role_permissions WHERE permission_id = $1', [id]);
+    if (parseInt(rolePermRows.rows[0].count) > 0) {
       return res.status(400).json({ ok: false, message: 'Cannot delete permission that is assigned to roles' });
     }
 
-    await pool.query('DELETE FROM permissions WHERE id = ?', [id]);
+    await pool.query('DELETE FROM permissions WHERE id = $1', [id]);
 
     res.json({ ok: true, message: 'Permission deleted successfully' });
   } catch (err) {

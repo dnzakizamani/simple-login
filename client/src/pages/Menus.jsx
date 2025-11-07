@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import DataTable from 'react-data-table-component'
-import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 export default function Menus() {
@@ -164,9 +163,6 @@ export default function Menus() {
           </button>
         </div>
       ),
-      ignoreRowClick: true,
-      allowOverflow: true,
-      button: true,
       width: '150px',
       style: {
         position: 'sticky',
@@ -199,7 +195,7 @@ export default function Menus() {
   }
 
   return (
-    <Layout title="Menus">
+    <div className="">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">Menus Management</h2>
@@ -382,6 +378,6 @@ export default function Menus() {
           </div>
         </div>
       )}
-    </Layout>
+    </div>
   )
 }

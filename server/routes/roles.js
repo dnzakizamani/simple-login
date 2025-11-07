@@ -13,37 +13,40 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
     const offset = (parsedPage - 1) * parsedLimit;
 
     let whereClause = '';
-    let params = [];
+    let params = [parsedLimit, offset];
 
     if (search) {
-      whereClause = 'WHERE r.name LIKE ? OR r.description LIKE ?';
-      params = [`%${search}%`, `%${search}%`];
+      whereClause = 'WHERE r.name ILIKE $3 OR r.description ILIKE $4';
+      params = [parsedLimit, offset, `%${search}%`, `%${search}%`];
     }
 
     // Get total count
-    const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM roles r ${whereClause}`,
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM roles r ${whereClause.replace(/\$(\d+)/g, (match, num) => `$${parseInt(num) + 2}`)}`,
       search ? [`%${search}%`, `%${search}%`] : []
     );
-    const total = countResult[0].total;
+    const total = parseInt(countResult.rows[0].total);
 
     // Get roles with permissions
-    const [rows] = await pool.query(`
+    const queryParams = search ? [parsedLimit, offset, `%${search}%`, `%${search}%`] : [parsedLimit, offset];
+    const queryWhereClause = search ? 'WHERE r.name ILIKE $3 OR r.description ILIKE $4' : '';
+    
+    const result = await pool.query(`
       SELECT r.id, r.name, r.description, r.created_at,
-             GROUP_CONCAT(rp.permission_id) as permission_ids,
-             GROUP_CONCAT(p.name) as permissions
+             string_agg(rp.permission_id::text, ',') as permission_ids,
+             string_agg(p.name, ',') as permissions
       FROM roles r
       LEFT JOIN role_permissions rp ON r.id = rp.role_id
       LEFT JOIN permissions p ON rp.permission_id = p.id
-      ${whereClause}
+      ${queryWhereClause}
       GROUP BY r.id
       ORDER BY r.created_at DESC
-      LIMIT ${parsedLimit} OFFSET ${offset}
-    `, params);
+      LIMIT $1 OFFSET $2
+    `, queryParams);
 
-    const roles = rows.map(role => ({
+    const roles = result.rows.map(role => ({
       ...role,
-      permission_ids: role.permission_ids ? role.permission_ids.split(',').map(id => parseInt(id)) : [],
+      permission_ids: role.permission_ids ? role.permission_ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       permissions: role.permissions ? role.permissions.split(',') : []
     }));
 
@@ -67,25 +70,25 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
 router.get('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query(`
+    const result = await pool.query(`
       SELECT r.id, r.name, r.description, r.created_at,
-             GROUP_CONCAT(rp.permission_id) as permission_ids,
-             GROUP_CONCAT(p.name) as permissions
+             string_agg(rp.permission_id::text, ',') as permission_ids,
+             string_agg(p.name, ',') as permissions
       FROM roles r
       LEFT JOIN role_permissions rp ON r.id = rp.role_id
       LEFT JOIN permissions p ON rp.permission_id = p.id
-      WHERE r.id = ?
+      WHERE r.id = $1
       GROUP BY r.id
     `, [id]);
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: 'Role not found' });
     }
 
     const role = {
-      ...rows[0],
-      permission_ids: rows[0].permission_ids ? rows[0].permission_ids.split(',').map(id => parseInt(id)) : [],
-      permissions: rows[0].permissions ? rows[0].permissions.split(',') : []
+      ...result.rows[0],
+      permission_ids: result.rows[0].permission_ids ? result.rows[0].permission_ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
+      permissions: result.rows[0].permissions ? result.rows[0].permissions.split(',') : []
     };
 
     res.json({ ok: true, role });
@@ -105,22 +108,22 @@ router.post('/', authMiddleware.withRoles, requireRole('admin'), async (req, res
     }
 
     // Check if role name already exists
-    const [existing] = await pool.query('SELECT id FROM roles WHERE name = ?', [name]);
-    if (existing.length) {
+    const existing = await pool.query('SELECT id FROM roles WHERE name = $1', [name]);
+    if (existing.rows.length) {
       return res.status(409).json({ ok: false, message: 'Role name already exists' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO roles (name, description) VALUES (?, ?)',
+    const result = await pool.query(
+      'INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id',
       [name, description || '']
     );
 
-    const roleId = result.insertId;
+    const roleId = result.rows[0].id;
 
     // Assign permissions if provided
     if (permissionIds && Array.isArray(permissionIds)) {
       for (const permissionId of permissionIds) {
-        await pool.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)', [roleId, permissionId]);
+        await pool.query('INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)', [roleId, permissionId]);
       }
     }
 
@@ -138,41 +141,44 @@ router.put('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, r
     const { name, description, permissionIds } = req.body;
 
     // Check if role exists
-    const [roleRows] = await pool.query('SELECT id FROM roles WHERE id = ?', [id]);
-    if (!roleRows.length) {
+    const roleRows = await pool.query('SELECT id FROM roles WHERE id = $1', [id]);
+    if (!roleRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Role not found' });
     }
 
     let updateFields = [];
     let updateValues = [];
+    let paramIndex = 1;
 
     if (name) {
       // Check name uniqueness
-      const [existing] = await pool.query('SELECT id FROM roles WHERE name = ? AND id != ?', [name, id]);
-      if (existing.length) {
+      const existing = await pool.query('SELECT id FROM roles WHERE name = $1 AND id != $2', [name, id]);
+      if (existing.rows.length) {
         return res.status(409).json({ ok: false, message: 'Role name already exists' });
       }
-      updateFields.push('name = ?');
+      updateFields.push(`name = $${paramIndex}`);
       updateValues.push(name);
+      paramIndex++;
     }
 
     if (description !== undefined) {
-      updateFields.push('description = ?');
+      updateFields.push(`description = $${paramIndex}`);
       updateValues.push(description);
+      paramIndex++;
     }
 
     if (updateFields.length) {
-      updateValues.push(id);
-      await pool.query(`UPDATE roles SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+      updateValues.push(id); // for WHERE clause
+      await pool.query(`UPDATE roles SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`, updateValues);
     }
 
     // Update permissions if provided
     if (permissionIds && Array.isArray(permissionIds)) {
       // Remove existing permissions
-      await pool.query('DELETE FROM role_permissions WHERE role_id = ?', [id]);
+      await pool.query('DELETE FROM role_permissions WHERE role_id = $1', [id]);
       // Add new permissions
       for (const permissionId of permissionIds) {
-        await pool.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)', [id, permissionId]);
+        await pool.query('INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)', [id, permissionId]);
       }
     }
 
@@ -189,18 +195,18 @@ router.delete('/:id', authMiddleware.withRoles, requireRole('admin'), async (req
     const { id } = req.params;
 
     // Check if role exists
-    const [roleRows] = await pool.query('SELECT id FROM roles WHERE id = ?', [id]);
-    if (!roleRows.length) {
+    const roleRows = await pool.query('SELECT id FROM roles WHERE id = $1', [id]);
+    if (!roleRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Role not found' });
     }
 
     // Check if role is assigned to any users
-    const [userRoleRows] = await pool.query('SELECT COUNT(*) as count FROM user_roles WHERE role_id = ?', [id]);
-    if (userRoleRows[0].count > 0) {
+    const userRoleRows = await pool.query('SELECT COUNT(*) as count FROM user_roles WHERE role_id = $1', [id]);
+    if (parseInt(userRoleRows.rows[0].count) > 0) {
       return res.status(400).json({ ok: false, message: 'Cannot delete role that is assigned to users' });
     }
 
-    await pool.query('DELETE FROM roles WHERE id = ?', [id]);
+    await pool.query('DELETE FROM roles WHERE id = $1', [id]);
 
     res.json({ ok: true, message: 'Role deleted successfully' });
   } catch (err) {

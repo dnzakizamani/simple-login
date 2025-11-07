@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import DataTable from 'react-data-table-component'
-import Layout from '../components/Layout'
+// import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 export default function Roles() {
@@ -143,9 +143,6 @@ export default function Roles() {
           </button>
         </div>
       ),
-      ignoreRowClick: true,
-      allowOverflow: true,
-      button: true,
       width: '150px',
       style: {
         position: 'sticky',
@@ -178,7 +175,8 @@ export default function Roles() {
   }
 
   return (
-    <Layout title="Roles">
+
+    <div className="">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">Roles Management</h2>
@@ -324,6 +322,7 @@ export default function Roles() {
           </div>
         </div>
       )}
-    </Layout>
+    </div>
+
   )
 }

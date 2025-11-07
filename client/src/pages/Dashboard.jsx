@@ -5,7 +5,7 @@ import * as SiIcons from 'react-icons/si'
 
 export default function Dashboard() {
   return (
-    <Layout title="Portfolio">
+    <div>
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-8 mb-8">
         <div className="flex flex-col md:flex-row items-center">
@@ -168,6 +168,6 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
-    </Layout>
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
-import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 export default function CrudGenerator() {
@@ -96,7 +95,7 @@ export default function CrudGenerator() {
   }
 
   return (
-    <Layout title="CRUD Generator">
+    <div>
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">CRUD Module Generator</h2>
@@ -264,6 +263,6 @@ export default function CrudGenerator() {
           </div>
         </form>
       </div>
-    </Layout>
+    </div>
   )
 }

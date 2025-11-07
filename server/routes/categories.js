@@ -19,32 +19,35 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
     const offset = (parsedPage - 1) * parsedLimit;
 
     let whereClause = '';
-    let params = [];
+    let params = [parsedLimit, offset];
 
     if (search) {
-      whereClause = 'WHERE name LIKE ? OR description LIKE ?';
-      params = [`%${search}%`, `%${search}%`];
+      whereClause = 'WHERE name ILIKE $3 OR description ILIKE $4';
+      params = [parsedLimit, offset, `%${search}%`, `%${search}%`];
     }
 
     // Get total count
-    const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM categories ${whereClause}`,
-      params
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM categories ${whereClause.replace(/\$(\d+)/g, (match, num) => `$${parseInt(num) + 2}`)}`,
+      search ? [`%${search}%`, `%${search}%`] : []
     );
-    const total = countResult[0].total;
+    const total = parseInt(countResult.rows[0].total);
 
     // Get categories
-    const [rows] = await pool.query(`
+    const queryParams = search ? [parsedLimit, offset, `%${search}%`, `%${search}%`] : [parsedLimit, offset];
+    const queryWhereClause = search ? 'WHERE name ILIKE $3 OR description ILIKE $4' : '';
+    
+    const result = await pool.query(`
       SELECT id, name, description, created_at, updated_at
       FROM categories
-      ${whereClause}
+      ${queryWhereClause}
       ORDER BY created_at DESC
-      LIMIT ${parsedLimit} OFFSET ${offset}
-    `, params);
+      LIMIT $1 OFFSET $2
+    `, queryParams);
 
     res.json({
       ok: true,
-      categories: rows,
+      categories: result.rows,
       pagination: {
         page: parsedPage,
         limit: parsedLimit,
@@ -62,16 +65,16 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
 router.get('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query(
-      'SELECT id, name, description, created_at, updated_at FROM categories WHERE id = ?',
+    const result = await pool.query(
+      'SELECT id, name, description, created_at, updated_at FROM categories WHERE id = $1',
       [id]
     );
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: 'Categories not found' });
     }
 
-    res.json({ ok: true, categorie: rows[0] });
+    res.json({ ok: true, categorie: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -87,15 +90,15 @@ router.post('/', authMiddleware.withRoles, requireRole('admin'), async (req, res
       return res.status(400).json({ ok: false, message: 'Name is required' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO categories (name, description) VALUES (?, ?)',
+    const result = await pool.query(
+      'INSERT INTO categories (name, description) VALUES ($1, $2) RETURNING id',
       [req.body.name, req.body.description]
     );
 
     res.status(201).json({
       ok: true,
       message: 'Categories created successfully',
-      id: result.insertId
+      id: result.rows[0].id
     });
   } catch (err) {
     console.error(err);
@@ -110,26 +113,29 @@ router.put('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, r
     const { name, description } = req.body;
 
     // Check if categorie exists
-    const [itemRows] = await pool.query('SELECT id FROM categories WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const itemRows = await pool.query('SELECT id FROM categories WHERE id = $1', [id]);
+    if (!itemRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Categories not found' });
     }
 
     let updateFields = [];
     let updateValues = [];
+    let paramIndex = 1;
 
     if (name !== undefined) {
-      updateFields.push('name = ?');
+      updateFields.push(`name = $${paramIndex}`);
       updateValues.push(name);
+      paramIndex++;
     }
     if (description !== undefined) {
-      updateFields.push('description = ?');
+      updateFields.push(`description = $${paramIndex}`);
       updateValues.push(description);
+      paramIndex++;
     }
 
     if (updateFields.length) {
-      updateValues.push(id);
-      await pool.query(`UPDATE categories SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+      updateValues.push(id); // for WHERE clause
+      await pool.query(`UPDATE categories SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`, updateValues);
     }
 
     res.json({ ok: true, message: 'Categories updated successfully' });
@@ -145,12 +151,12 @@ router.delete('/:id', authMiddleware.withRoles, requireRole('admin'), async (req
     const { id } = req.params;
 
     // Check if categorie exists
-    const [itemRows] = await pool.query('SELECT id FROM categories WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const itemRows = await pool.query('SELECT id FROM categories WHERE id = $1', [id]);
+    if (!itemRows.rows.length) {
       return res.status(404).json({ ok: false, message: 'Categories not found' });
     }
 
-    await pool.query('DELETE FROM categories WHERE id = ?', [id]);
+    await pool.query('DELETE FROM categories WHERE id = $1', [id]);
 
     res.json({ ok: true, message: 'Categories deleted successfully' });
   } catch (err) {

@@ -19,32 +19,35 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
     const offset = (parsedPage - 1) * parsedLimit;
 
     let whereClause = '';
-    let params = [];
+    let params = [parsedLimit, offset];
 
     if (search) {
-      whereClause = 'WHERE name LIKE ?';
-      params = ['%' + search + '%'];
+      whereClause = 'WHERE name ILIKE $3';
+      params = [parsedLimit, offset, `%${search}%`];
     }
 
     // Get total count
-    const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM transactions ${whereClause}`,
-      params
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM transactions ${whereClause.replace(/\$(\d+)/g, (match, num) => `$${parseInt(num) + 2}`)}`,
+      search ? [`%${search}%`] : []
     );
-    const total = countResult[0].total;
+    const total = parseInt(countResult.rows[0].total);
 
     // Get transactions
-    const [rows] = await pool.query(`
+    const queryParams = search ? [parsedLimit, offset, `%${search}%`] : [parsedLimit, offset];
+    const queryWhereClause = search ? 'WHERE name ILIKE $3' : '';
+    
+    const result = await pool.query(`
       SELECT id, name, date, created_at, updated_at
       FROM transactions
-      ${whereClause}
+      ${queryWhereClause}
       ORDER BY created_at DESC
-      LIMIT ${parsedLimit} OFFSET ${offset}
-    `, params);
+      LIMIT $1 OFFSET $2
+    `, queryParams);
 
     res.json({
       ok: true,
-      transactions: rows,
+      transactions: result.rows,
       pagination: {
         page: parsedPage,
         limit: parsedLimit,
@@ -62,16 +65,16 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
 router.get('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query(
-      'SELECT id, name, date, created_at, updated_at FROM transactions WHERE id = ?',
+    const result = await pool.query(
+      'SELECT id, name, date, created_at, updated_at FROM transactions WHERE id = $1',
       [id]
     );
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: 'Transactions not found' });
     }
 
-    res.json({ ok: true, transaction: rows[0] });
+    res.json({ ok: true, transaction: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -90,15 +93,15 @@ router.post('/', authMiddleware.withRoles, requireRole('admin'), async (req, res
       return res.status(400).json({ ok: false, message: 'Date is required' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO transactions (name, date) VALUES (?, ?)',
+    const result = await pool.query(
+      'INSERT INTO transactions (name, date) VALUES ($1, $2) RETURNING id',
       [req.body.name, req.body.date]
     );
 
     res.status(201).json({
       ok: true,
       message: 'Transactions created successfully',
-      id: result.insertId
+      id: result.rows[0].id
     });
   } catch (err) {
     console.error(err);
@@ -113,26 +116,29 @@ router.put('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, r
     const { name, date } = req.body;
 
     // Check if transaction exists
-    const [itemRows] = await pool.query('SELECT id FROM transactions WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const itemResult = await pool.query('SELECT id FROM transactions WHERE id = $1', [id]);
+    if (!itemResult.rows.length) {
       return res.status(404).json({ ok: false, message: 'Transactions not found' });
     }
 
     let updateFields = [];
     let updateValues = [];
+    let paramIndex = 1;
 
     if (name !== undefined) {
-      updateFields.push('name = ?');
+      updateFields.push(`name = $${paramIndex}`);
       updateValues.push(name);
+      paramIndex++;
     }
     if (date !== undefined) {
-      updateFields.push('date = ?');
+      updateFields.push(`date = $${paramIndex}`);
       updateValues.push(date);
+      paramIndex++;
     }
 
     if (updateFields.length) {
-      updateValues.push(id);
-      await pool.query(`UPDATE transactions SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+      updateValues.push(id); // for WHERE clause
+      await pool.query(`UPDATE transactions SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`, updateValues);
     }
 
     res.json({ ok: true, message: 'Transactions updated successfully' });
@@ -148,12 +154,12 @@ router.delete('/:id', authMiddleware.withRoles, requireRole('admin'), async (req
     const { id } = req.params;
 
     // Check if transaction exists
-    const [itemRows] = await pool.query('SELECT id FROM transactions WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const itemResult = await pool.query('SELECT id FROM transactions WHERE id = $1', [id]);
+    if (!itemResult.rows.length) {
       return res.status(404).json({ ok: false, message: 'Transactions not found' });
     }
 
-    await pool.query('DELETE FROM transactions WHERE id = ?', [id]);
+    await pool.query('DELETE FROM transactions WHERE id = $1', [id]);
 
     res.json({ ok: true, message: 'Transactions deleted successfully' });
   } catch (err) {

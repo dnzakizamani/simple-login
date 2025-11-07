@@ -1,4 +1,4 @@
-/**
+  /**
  * Express server setup
  * Developed by D.N. Zaki Zamani
  */
@@ -13,9 +13,10 @@ const userRoutes = require('./routes/users');
 const roleRoutes = require('./routes/roles');
 const permissionRoutes = require('./routes/permissions');
 const menuRoutes = require('./routes/menus');
-const booksRoutes = require('./routes/books');
-const bookReviewsRoutes = require('./routes/book-reviews');
 const pdfFilesRoutes = require('./routes/pdf-files');
+const imageFilesRoutes = require('./routes/image-files');
+const moodboardsRoutes = require('./routes/moodboards');
+const fileConversionsRoutes = require('./routes/file-conversions');
 const crudGeneratorRoutes = require('./routes/crud-generator');
 const categoriesRoutes = require('./routes/categories');
 const productsRoutes = require('./routes/products');
@@ -33,12 +34,16 @@ app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/menus', menuRoutes);
-app.use('/api/books', booksRoutes);
-app.use('/api/book-reviews', bookReviewsRoutes);
 app.use('/api/pdf-files', pdfFilesRoutes);
+app.use('/api/image-files', imageFilesRoutes);
+app.use('/api/moodboards', moodboardsRoutes);
+app.use('/api/file-conversions', fileConversionsRoutes);
 app.use('/api/crud-generator', crudGeneratorRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/products', productsRoutes);
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

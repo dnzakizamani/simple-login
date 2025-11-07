@@ -21,6 +21,7 @@
     "react-router-dom": "^6.11.2",
     "react-select": "^5.10.2",
     "react-toastify": "^11.0.5",
+    "react-transition-group": "^4.4.5",
     "recharts": "^3.3.0",
     "styled-components": "^6.1.19",
     "three": "^0.180.0",

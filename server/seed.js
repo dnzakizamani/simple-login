@@ -76,6 +76,8 @@ async function seed() {
     console.log('Created uploads directory');
   }
 
+
+
   // Create user_roles table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_roles (
@@ -164,38 +166,7 @@ async function seed() {
   `);
 
 
-  // Create books table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS books (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      title TEXT NOT NULL,
-      author TEXT,
-      isbn VARCHAR(20),
-      published_year INT,
-      image_url TEXT,
-      description TEXT,
-      user_id INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
 
-  // Create book_reviews table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS book_reviews (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      book_id INT NOT NULL,
-      rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-      review_text TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-      UNIQUE KEY unique_user_book (user_id, book_id)
-    )
-  `);
 
   // Create pdf_files table
   await pool.query(`
@@ -228,6 +199,85 @@ async function seed() {
       UNIQUE KEY unique_user_pdf (user_id, pdf_id)
     )
   `);
+
+  // Create image_files table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS image_files (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      original_filename VARCHAR(255) NOT NULL,
+      file_path TEXT NOT NULL,
+      watermarked_path TEXT,
+      file_size INT NOT NULL,
+      user_id INT NOT NULL,
+      watermark_text TEXT,
+      watermark_opacity DECIMAL(3,2) DEFAULT 0.5,
+      watermark_color VARCHAR(7) DEFAULT '#ffffff',
+      watermark_font_size INT DEFAULT 24,
+      watermark_spacing INT DEFAULT 100,
+      watermark_tilt DECIMAL(4,2) DEFAULT 0.0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create moodboard_projects table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS moodboard_projects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create moodboard_images table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS moodboard_images (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id INT NOT NULL,
+      filename VARCHAR(255) NOT NULL,
+      original_filename VARCHAR(255) NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INT NOT NULL,
+      position_x INT DEFAULT 0,
+      position_y INT DEFAULT 0,
+      width INT DEFAULT 200,
+      height INT DEFAULT 200,
+      rotation DECIMAL(5,2) DEFAULT 0.0,
+      z_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES moodboard_projects(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create file_conversions table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS file_conversions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      original_filename VARCHAR(255) NOT NULL,
+      original_file_path TEXT NOT NULL,
+      converted_filename VARCHAR(255),
+      converted_file_path TEXT,
+      original_format VARCHAR(10) NOT NULL,
+      target_format VARCHAR(10) NOT NULL,
+      file_size INT NOT NULL,
+      status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+      error_message TEXT,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+
 
   // Insert sample data
   // Roles
@@ -283,9 +333,11 @@ async function seed() {
     { name: 'Roles', path: '/roles', icon: 'FaShieldAlt' },
     { name: 'Permissions', path: '/permissions', icon: 'FaKey' },
     { name: 'Menus', path: '/menus', icon: 'FaBars' },
-    { name: 'Books', path: '/books', icon: 'FaBook' },
-    { name: 'Book Reviews', path: '/book-reviews', icon: 'FaStar' },
+
     { name: 'PDF Library', path: '/pdfs', icon: 'FaFilePdf' },
+    { name: 'Images', path: '/images', icon: 'FaImages' },
+    { name: 'Moodboards', path: '/moodboards', icon: 'FaPalette' },
+    { name: 'File Converter', path: '/converter', icon: 'FaFileAlt' },
     { name: 'CRUD Generator', path: '/crud-generator', icon: 'FaMagic' }
   ];
 
@@ -318,82 +370,7 @@ async function seed() {
     adminId = adminRows[0].id;
   }
 
-  // Sample books
-  const sampleBooks = [
-    {
-      title: 'The Great Gatsby',
-      author: 'F. Scott Fitzgerald',
-      isbn: '978-0-7432-7356-5',
-      published_year: 1925,
-      image_url: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400',
-      description: 'A classic American novel set in the Jazz Age, exploring themes of wealth, love, and the American Dream.'
-    },
-    {
-      title: 'To Kill a Mockingbird',
-      author: 'Harper Lee',
-      isbn: '978-0-06-112008-4',
-      published_year: 1960,
-      image_url: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
-      description: 'A powerful story about racial injustice and moral growth in the American South.'
-    },
-    {
-      title: '1984',
-      author: 'George Orwell',
-      isbn: '978-0-452-28423-4',
-      published_year: 1949,
-      image_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-      description: 'A dystopian novel about totalitarianism, surveillance, and the power of language.'
-    },
-    {
-      title: 'Pride and Prejudice',
-      author: 'Jane Austen',
-      isbn: '978-0-14-143951-8',
-      published_year: 1813,
-      image_url: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400',
-      description: 'A romantic novel about manners, marriage, and social class in Regency England.'
-    },
-    {
-      title: 'The Catcher in the Rye',
-      author: 'J.D. Salinger',
-      isbn: '978-0-316-76948-0',
-      published_year: 1951,
-      image_url: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400',
-      description: 'A coming-of-age story about teenage rebellion and alienation.'
-    }
-  ];
 
-  for (const book of sampleBooks) {
-    const [bookRows] = await pool.query('SELECT id FROM books WHERE title = ?', [book.title]);
-    if (!bookRows.length) {
-      await pool.query(
-        'INSERT INTO books (title, author, isbn, published_year, image_url, description) VALUES (?, ?, ?, ?, ?, ?)',
-        [book.title, book.author, book.isbn, book.published_year, book.image_url, book.description]
-      );
-    }
-  }
-
-  // Sample book reviews
-  const [bookIds] = await pool.query('SELECT id FROM books LIMIT 3');
-  if (bookIds.length >= 3) {
-    const sampleReviews = [
-      { user_id: userId, book_id: bookIds[0].id, rating: 5, review_text: 'An absolutely brilliant novel! The characters are so well-developed and the story is captivating from start to finish.' },
-      { user_id: userId, book_id: bookIds[1].id, rating: 4, review_text: 'A powerful story about morality and justice. The writing is beautiful and the themes are timeless.' },
-      { user_id: adminId, book_id: bookIds[2].id, rating: 5, review_text: 'A dystopian masterpiece that feels more relevant today than ever. Orwell\'s vision is both terrifying and insightful.' }
-    ];
-
-    for (const review of sampleReviews) {
-      const [reviewRows] = await pool.query(
-        'SELECT id FROM book_reviews WHERE user_id = ? AND book_id = ?',
-        [review.user_id, review.book_id]
-      );
-      if (!reviewRows.length) {
-        await pool.query(
-          'INSERT INTO book_reviews (user_id, book_id, rating, review_text) VALUES (?, ?, ?, ?)',
-          [review.user_id, review.book_id, review.rating, review.review_text]
-        );
-      }
-    }
-  }
 
   // Assign roles
   await pool.query('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, userRoleId]);

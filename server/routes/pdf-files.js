@@ -3,29 +3,15 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db');
-const auth = require('../middleware/auth');
+const { supabase } = require('../supabase');
+const { verifyToken: auth } = require('../middleware/auth');
 const axios = require('axios');
 const { translate } = require('@vitalets/google-translate-api');
 
 const router = express.Router();
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for PDF uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for PDF uploads - memory storage for Supabase upload
+const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {
     cb(null, true);
@@ -45,11 +31,11 @@ const upload = multer({
 // Get all PDF files for the authenticated user
 router.get('/', auth, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT id, title, filename, original_filename, file_size, created_at FROM pdf_files WHERE user_id = ? ORDER BY created_at DESC',
+    const result = await pool.query(
+      'SELECT id, title, filename, original_filename, file_size, created_at FROM pdf_files WHERE user_id = $1 ORDER BY created_at DESC',
       [req.user.id]
     );
-    res.json({ pdfs: rows });
+    res.json({ pdfs: result.rows });
   } catch (err) {
     console.error('Error fetching PDFs:', err);
     res.status(500).json({ message: 'Failed to fetch PDFs' });
@@ -65,22 +51,44 @@ router.post('/upload', auth, upload.single('pdf'), async (req, res) => {
 
     const { title } = req.body;
     if (!title) {
-      // Delete uploaded file if title is missing
-      fs.unlinkSync(req.file.path);
       return res.status(400).json({ message: 'Title is required' });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO pdf_files (title, filename, original_filename, file_path, file_size, user_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, req.file.filename, req.file.originalname, req.file.path, req.file.size, req.user.id]
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const filename = uniqueSuffix + path.extname(req.file.originalname);
+    
+    // Upload to Supabase Storage
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase configuration not found. Please check your environment variables.' });
+    }
+    
+    const { data, error } = await supabase
+      .storage
+      .from('pdf-files') // Nama bucket di Supabase Storage
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Error uploading to Supabase Storage:', error);
+      return res.status(500).json({ message: 'Failed to upload PDF to storage' });
+    }
+
+    // Insert record to database
+    const result = await pool.query(
+      'INSERT INTO pdf_files (title, filename, original_filename, file_path, file_size, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [title, filename, req.file.originalname, `/storage/pdf-files/${filename}`, req.file.size, req.user.id]
     );
 
     res.status(201).json({
       message: 'PDF uploaded successfully',
       pdf: {
-        id: result.insertId,
+        id: result.rows[0].id,
         title,
-        filename: req.file.filename,
+        filename,
         original_filename: req.file.originalname,
         file_size: req.file.size,
         created_at: new Date()
@@ -88,10 +96,6 @@ router.post('/upload', auth, upload.single('pdf'), async (req, res) => {
     });
   } catch (err) {
     console.error('Error uploading PDF:', err);
-    // Delete uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
     res.status(500).json({ message: 'Failed to upload PDF' });
   }
 });
@@ -99,16 +103,16 @@ router.post('/upload', auth, upload.single('pdf'), async (req, res) => {
 // Get a specific PDF file
 router.get('/:id', auth, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM pdf_files WHERE id = ? AND user_id = ?',
+    const result = await pool.query(
+      'SELECT * FROM pdf_files WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'PDF not found' });
     }
 
-    const pdf = rows[0];
+    const pdf = result.rows[0];
     res.json({ pdf });
   } catch (err) {
     console.error('Error fetching PDF:', err);
@@ -119,23 +123,38 @@ router.get('/:id', auth, async (req, res) => {
 // Download PDF file
 router.get('/:id/download', auth, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM pdf_files WHERE id = ? AND user_id = ?',
+    const result = await pool.query(
+      'SELECT * FROM pdf_files WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'PDF not found' });
     }
 
-    const pdf = rows[0];
-    if (!fs.existsSync(pdf.file_path)) {
-      return res.status(404).json({ message: 'PDF file not found on disk' });
+    const pdf = result.rows[0];
+    
+    // Download from Supabase Storage
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase configuration not found. Please check your environment variables.' });
+    }
+    
+    const { data, error } = await supabase
+      .storage
+      .from('pdf-files')
+      .download(pdf.filename);
+
+    if (error) {
+      console.error('Error downloading from Supabase Storage:', error);
+      return res.status(404).json({ message: 'PDF file not found in storage' });
     }
 
+    // Convert the file data to buffer and send
+    const fileBuffer = Buffer.from(await data.arrayBuffer());
+    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${pdf.original_filename}"`);
-    res.sendFile(pdf.file_path);
+    res.send(fileBuffer);
   } catch (err) {
     console.error('Error downloading PDF:', err);
     res.status(500).json({ message: 'Failed to download PDF' });
@@ -145,24 +164,32 @@ router.get('/:id/download', auth, async (req, res) => {
 // Delete PDF file
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM pdf_files WHERE id = ? AND user_id = ?',
+    const result = await pool.query(
+      'SELECT * FROM pdf_files WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'PDF not found' });
     }
 
-    const pdf = rows[0];
+    const pdf = result.rows[0];
 
-    // Delete file from disk
-    if (fs.existsSync(pdf.file_path)) {
-      fs.unlinkSync(pdf.file_path);
+    // Delete file from Supabase Storage
+    if (supabase) {
+      const { error } = await supabase
+        .storage
+        .from('pdf-files')
+        .remove([pdf.filename]);
+
+      if (error) {
+        console.error('Error deleting from Supabase Storage:', error);
+        // Continue with database deletion even if storage deletion fails
+      }
     }
 
     // Delete from database
-    await pool.query('DELETE FROM pdf_files WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM pdf_files WHERE id = $1', [req.params.id]);
 
     res.json({ message: 'PDF deleted successfully' });
   } catch (err) {
@@ -174,16 +201,16 @@ router.delete('/:id', auth, async (req, res) => {
 // Get reading progress for a PDF
 router.get('/:id/progress', auth, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM pdf_reading_progress WHERE pdf_id = ? AND user_id = ?',
+    const result = await pool.query(
+      'SELECT * FROM pdf_reading_progress WHERE pdf_id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.json({ progress: null });
     }
 
-    res.json({ progress: rows[0] });
+    res.json({ progress: result.rows[0] });
   } catch (err) {
     console.error('Error fetching reading progress:', err);
     res.status(500).json({ message: 'Failed to fetch reading progress' });
@@ -197,8 +224,9 @@ router.post('/:id/progress', auth, async (req, res) => {
 
     await pool.query(
       `INSERT INTO pdf_reading_progress (user_id, pdf_id, current_page, total_pages)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE current_page = VALUES(current_page), total_pages = VALUES(total_pages)`,
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, pdf_id) 
+       DO UPDATE SET current_page = EXCLUDED.current_page, total_pages = EXCLUDED.total_pages`,
       [req.user.id, req.params.id, current_page, total_pages]
     );
 

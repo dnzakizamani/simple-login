@@ -145,24 +145,27 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
     }
 
     // Get total count
-    const [countResult] = await pool.query(
-      \`SELECT COUNT(*) as total FROM ${tableName} \${whereClause}\`,
-      params
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as total FROM ' + tableName + ' ' + whereClause.replace(/\$(\d+)/g, (match, num) => '$' + (parseInt(num) + 2)),
+      search ? [${searchParamsStr}] : []
     );
-    const total = countResult[0].total;
+    const total = parseInt(countResult.rows[0].total);
 
     // Get ${moduleName}
-    const [rows] = await pool.query(\`
+    const paramsWithLimitOffset = search ? [parsedLimit, offset, ${searchParamsStr}] : [parsedLimit, offset];
+    const queryWhereClause = search ? 'WHERE ${searchFieldsStr}' : '';
+    
+    const result = await pool.query(\`
       SELECT ${selectFields}
       FROM ${tableName}
-      \${whereClause}
+      \${queryWhereClause}
       ORDER BY created_at DESC
-      LIMIT \${parsedLimit} OFFSET \${offset}
-    \`, params);
+      LIMIT $1 OFFSET $2
+    \`, paramsWithLimitOffset);
 
     res.json({
       ok: true,
-      ${moduleName}: rows,
+      ${moduleName}: result.rows,
       pagination: {
         page: parsedPage,
         limit: parsedLimit,
@@ -180,16 +183,16 @@ router.get('/', authMiddleware.withRoles, requireRole('admin'), async (req, res)
 router.get('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query(
-      'SELECT ${selectFields} FROM ${tableName} WHERE id = ?',
+    const result = await pool.query(
+      'SELECT ${selectFields} FROM ${tableName} WHERE id = $1',
       [id]
     );
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: '${capitalizedModule} not found' });
     }
 
-    res.json({ ok: true, ${moduleName.slice(-1) === 's' ? moduleName.slice(0, -1) : moduleName}: rows[0] });
+    res.json({ ok: true, ${moduleName.slice(-1) === 's' ? moduleName.slice(0, -1) : moduleName}: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -202,15 +205,15 @@ router.post('/', authMiddleware.withRoles, requireRole('admin'), async (req, res
     const { ${fields.map(f => f.name).join(', ')} } = req.body;
 
 ${validationCode}
-    const [result] = await pool.query(
-      'INSERT INTO ${tableName} (${insertFields}) VALUES (${insertPlaceholders})',
+    const result = await pool.query(
+      'INSERT INTO ${tableName} (${insertFields}) VALUES (${insertPlaceholders}) RETURNING id',
       [${insertValues}]
     );
 
     res.status(201).json({
       ok: true,
       message: '${capitalizedModule} created successfully',
-      id: result.insertId
+      id: result.rows[0].id
     });
   } catch (err) {
     console.error(err);
@@ -225,19 +228,26 @@ router.put('/:id', authMiddleware.withRoles, requireRole('admin'), async (req, r
     const { ${fields.map(f => f.name).join(', ')} } = req.body;
 
     // Check if ${moduleName.slice(-1) === 's' ? moduleName.slice(0, -1) : moduleName} exists
-    const [itemRows] = await pool.query('SELECT id FROM ${tableName} WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const result = await pool.query('SELECT id FROM ${tableName} WHERE id = $1', [id]);
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: '${capitalizedModule} not found' });
     }
 
     let updateFields = [];
     let updateValues = [];
+    let paramIndex = 1;
 
-${updateFieldsCode}
+${fields.map(field => {
+    return `    if (${field.name} !== undefined) {
+      updateFields.push('${field.name} = $' + paramIndex);
+      updateValues.push(${field.name});
+      paramIndex++;
+    }`;
+  }).join('\n')}
 
     if (updateFields.length) {
-      updateValues.push(id);
-      await pool.query(\`UPDATE ${tableName} SET \${updateFields.join(', ')} WHERE id = ?\`, updateValues);
+      updateValues.push(id); // for WHERE clause
+      await pool.query(\`UPDATE ${tableName} SET \${updateFields.join(', ')} WHERE id = $${paramIndex}\`, updateValues);
     }
 
     res.json({ ok: true, message: '${capitalizedModule} updated successfully' });
@@ -253,12 +263,12 @@ router.delete('/:id', authMiddleware.withRoles, requireRole('admin'), async (req
     const { id } = req.params;
 
     // Check if ${moduleName.slice(-1) === 's' ? moduleName.slice(0, -1) : moduleName} exists
-    const [itemRows] = await pool.query('SELECT id FROM ${tableName} WHERE id = ?', [id]);
-    if (!itemRows.length) {
+    const result = await pool.query('SELECT id FROM ${tableName} WHERE id = $1', [id]);
+    if (!result.rows.length) {
       return res.status(404).json({ ok: false, message: '${capitalizedModule} not found' });
     }
 
-    await pool.query('DELETE FROM ${tableName} WHERE id = ?', [id]);
+    await pool.query('DELETE FROM ${tableName} WHERE id = $1', [id]);
 
     res.json({ ok: true, message: '${capitalizedModule} deleted successfully' });
   } catch (err) {
@@ -577,8 +587,24 @@ ${formFields}
 async function createDatabaseTable(moduleName, fields) {
   const tableName = moduleName;
 
-  let createTableSQL = `CREATE TABLE IF NOT EXISTS \`${tableName}\` (
-  \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+  // Check if table already exists
+  const checkTableSQL = `
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name = $1
+    ) AS table_exists
+  `;
+
+  const checkResult = await pool.query(checkTableSQL, [tableName]);
+  
+  if (checkResult.rows[0].table_exists) {
+    console.log(`Table ${tableName} already exists`);
+    return;
+  }
+
+  let createTableSQL = `CREATE TABLE "${tableName}" (
+  "id" SERIAL PRIMARY KEY,
 `;
 
   fields.forEach(field => {
@@ -592,26 +618,29 @@ async function createDatabaseTable(moduleName, fields) {
         sqlType = 'VARCHAR(255)';
         break;
       case 'number':
-        sqlType = 'DECIMAL(10,2)';
+        sqlType = 'NUMERIC(10,2)';
         break;
       case 'date':
         sqlType = 'DATE';
         break;
       case 'datetime':
-        sqlType = 'DATETIME';
+        sqlType = 'TIMESTAMP';
         break;
       case 'select':
         sqlType = 'VARCHAR(100)';
+        break;
+      case 'boolean':
+        sqlType = 'BOOLEAN';
         break;
       default:
         sqlType = 'VARCHAR(255)';
     }
 
-    createTableSQL += `  \`${field.name}\` ${sqlType}${field.required ? ' NOT NULL' : ''},\n`;
+    createTableSQL += `  "${field.name}" ${sqlType}${field.required ? ' NOT NULL' : ''},\n`;
   });
 
-  createTableSQL += `  \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  createTableSQL += `  "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
   try {

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import DataTable from 'react-data-table-component'
-import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 export default function Products() {
@@ -135,7 +134,7 @@ export default function Products() {
   }
 
   return (
-    <Layout title="Products Management">
+    <div className="">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">Products Management</h2>
@@ -239,6 +238,6 @@ export default function Products() {
           </div>
         </div>
       )}
-    </Layout>
+    </div>
   )
 }

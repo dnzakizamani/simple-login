@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
-import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 export default function PDFs() {
@@ -95,7 +94,7 @@ export default function PDFs() {
   }
 
   return (
-    <Layout title="PDF Library">
+    <div className="">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">My PDF Library</h2>
@@ -230,6 +229,6 @@ export default function PDFs() {
           </div>
         </div>
       )}
-    </Layout>
+    </div>
   )
 }

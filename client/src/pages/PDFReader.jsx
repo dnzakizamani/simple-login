@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Document, Page, pdfjs } from 'react-pdf'
 import axios from 'axios'
 import { toast } from 'react-toastify'
-import Layout from '../components/Layout'
 import * as FaIcons from 'react-icons/fa'
 
 // Configure PDF.js worker
@@ -150,21 +149,21 @@ export default function PDFReader() {
   }, [focusMode, scale])
 
   if (loading) return (
-    <Layout title="PDF Reader">
+
       <div className="flex justify-center items-center h-64">
         <FaIcons.FaSpinner className="animate-spin text-4xl text-blue-500" />
       </div>
-    </Layout>
+
   )
 
   if (!pdf) return (
-    <Layout title="PDF Reader">
+
       <p className="text-center p-6">PDF not found</p>
-    </Layout>
+
   )
 
   return (
-    <Layout title={`Reading: ${pdf.title}`}>
+    <div>
       {/* Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -247,6 +246,6 @@ export default function PDFReader() {
           {translating ? "Translating..." : translation}
         </div>
       )}
-    </Layout>
+    </div>
   )
 }

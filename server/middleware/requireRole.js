@@ -8,14 +8,14 @@ module.exports = function (requiredRole) {
       }
 
       // Check if user has the required role
-      const [roleRows] = await pool.query(`
+      const roleResult = await pool.query(`
         SELECT r.name
         FROM roles r
         JOIN user_roles ur ON r.id = ur.role_id
-        WHERE ur.user_id = ? AND r.name = ?
+        WHERE ur.user_id = $1 AND r.name = $2
       `, [req.user.id, requiredRole]);
 
-      if (roleRows.length === 0) {
+      if (roleResult.rows.length === 0) {
         return res.status(403).json({ ok: false, message: 'Forbidden: Insufficient permissions' });
       }
 

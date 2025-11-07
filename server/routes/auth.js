@@ -23,9 +23,9 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!identifier || !password) return res.status(400).json({ ok: false, message: 'Fields required' });
 
   try {
-    const [rows] = await pool.query(
-      'SELECT id, username, email, password_hash FROM users WHERE email = ? OR username = ? LIMIT 1',
-      [identifier, identifier]
+    const { rows } = await pool.query(
+      'SELECT id, username, email, password_hash FROM users WHERE email = $1 OR username = $1 LIMIT 1',
+      [identifier]
     );
 
     if (!rows.length) return res.status(401).json({ ok: false, message: 'Invalid credentials' });
@@ -45,7 +45,16 @@ router.post('/login', loginLimiter, async (req, res) => {
       maxAge: 1000 * 60 * 60 // 1 hour
     });
 
-    res.json({ ok: true, message: 'Logged in' });
+    res.json({ 
+      ok: true, 
+      message: 'Logged in',
+      token: token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, message: 'Server error' });
@@ -59,8 +68,8 @@ router.post('/logout', (req, res) => {
 });
 
 // Check current user
-const authMiddleware = require('../middleware/auth');
-router.get('/me', authMiddleware.withRoles, (req, res) => {
+const { withRoles } = require('../middleware/auth');
+router.get('/me', withRoles, (req, res) => {
   res.json({ ok: true, user: req.user });
 });
 
